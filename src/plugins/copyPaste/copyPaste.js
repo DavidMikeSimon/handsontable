@@ -31,13 +31,38 @@ function CopyPastePlugin(instance) {
   this.copyPasteInstance.onCut(onCut);
   this.copyPasteInstance.onPaste(onPaste);
   this.onPaste = onPaste; // for paste testing purposes
+  this.copyPasteInstance.onFailedPaste(onFailedPaste);
 
   instance.addHook('beforeKeyDown', onBeforeKeyDown);
+
+  this.helpDiv = document.createElement('div');
+  this.helpDiv.className = 'helpModalWrapper';
+  this.helpDiv.addEventListener('click', () => this.hideHelpModal());
+  this.helpDiv.style.display = 'none';
+  instance.rootElement.appendChild(this.helpDiv);
+
+  var helpModal = document.createElement('div');
+  helpModal.className = 'helpModal';
+  var helpText = 'Your browser requires a keyboard shortcut to paste:';
+  helpText += '<div class="helpModalKeys">';
+  helpText += 'Press ';
+  if (navigator.userAgent.indexOf('Macintosh') == -1) {
+    helpText += '<div class="helpModalKey">Ctrl</div>';
+  } else {
+    // Mac 'clover' meta key
+    helpText += '<div class="helpModalKey">&#8984</div>';
+  }
+  helpText += '+';
+  helpText += '<div class="helpModalKey">V</div>';
+  helpText += '</div>';
+  helpModal.innerHTML = helpText;
+  this.helpDiv.appendChild(helpModal);
 
   function onCut() {
     if (!instance.isListening()) {
       return;
     }
+    _this.hideHelpModal();
     instance.selection.empty();
   }
 
@@ -57,6 +82,7 @@ function CopyPastePlugin(instance) {
     if (!instance.isListening() || !instance.selection.isSelected()) {
       return;
     }
+    _this.hideHelpModal();
     input = str;
     inputArray = SheetClip.parse(input);
     selected = instance.getSelected();
@@ -100,10 +126,19 @@ function CopyPastePlugin(instance) {
     instance.populateFromArray(areaStart.row, areaStart.col, inputArray, areaEnd.row, areaEnd.col, 'paste', instance.getSettings().pasteMode);
   }
 
+  function onFailedPaste() {
+    _this.showHelpModal();
+  }
+
   function onBeforeKeyDown(event) {
     if (!instance.getSelected()) {
       return;
     }
+
+    if (!isCtrlKey(event.keyCode)) {
+      _this.hideHelpModal();
+    }
+
     if (instance.getActiveEditor() && instance.getActiveEditor().isOpened()) {
       return;
     }
@@ -130,6 +165,24 @@ function CopyPastePlugin(instance) {
   }
 
   /**
+  * Display the help modal about the keyboard shortcut for pasting
+  */
+  this.showHelpModal = function() {
+    if (this.helpDiv) {
+      this.helpDiv.style.display = 'block';
+    }
+  };
+
+  /**
+  * Hide the help modal about the keyboard shortcut for pasting
+  */
+  this.hideHelpModal = function() {
+    if (this.helpDiv) {
+      this.helpDiv.style.display = 'none';
+    }
+  };
+
+  /**
    * Destroy plugin instance.
    *
    * @function destroy
@@ -139,8 +192,16 @@ function CopyPastePlugin(instance) {
     if (this.copyPasteInstance) {
       this.copyPasteInstance.removeCallback(onCut);
       this.copyPasteInstance.removeCallback(onPaste);
+      this.copyPasteInstance.removeCallback(onFailedPaste);
       this.copyPasteInstance.destroy();
       this.copyPasteInstance = null;
+
+    }
+    if (this.helpDiv) {
+      if (this.helpDiv.parentNode) {
+        this.helpDiv.parentNode.removeChild(this.helpDiv);
+      }
+      this.helpDiv = null;
     }
     instance.removeHook('beforeKeyDown', onBeforeKeyDown);
   };
